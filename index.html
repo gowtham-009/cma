@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Access</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        video, canvas {
+            border: 1px solid black;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" width="640" height="480" autoplay></video>
+    <button id="captureButton">Capture</button>
+    <button id="switchCameraButton">Switch Camera</button>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        let usingFrontCamera = true; // Track which camera is currently being used
+        let cameras = { front: null, rear: null }; // Store camera IDs
+
+        // Function to search for cameras
+        function searchForCameras() {
+            var deferred = $.Deferred();
+
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                navigator.mediaDevices.enumerateDevices().then(function(devices) {
+                    devices.forEach(function(device) {
+                        if (device.kind === 'videoinput') {
+                            if (device.label.toLowerCase().includes('back')) {
+                                cameras.rear = device.deviceId;
+                            } else if (device.label.toLowerCase().includes('front')) {
+                                cameras.front = device.deviceId;
+                            }
+                        }
+                    });
+
+                    deferred.resolve(cameras);
+                }).catch(function(err) {
+                    console.error('Error enumerating devices: ', err);
+                    deferred.resolve({ front: null, rear: null });
+                });
+            } else {
+                alert('Sorry, your browser does not support enumerateDevices');
+                deferred.resolve({ front: null, rear: null });
+            }
+
+            return deferred.promise();
+        }
+
+        // Function to start the camera with a specific device ID
+        async function startCamera(deviceId) {
+            if (deviceId) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: deviceId } }
+                    });
+                    document.getElementById('video').srcObject = stream;
+                } catch (err) {
+                    console.error('Error accessing camera: ', err);
+                    alert('Could not access camera. Please ensure you have granted permission.');
+                }
+            } else {
+                alert('Camera not found.');
+            }
+        }
+
+        // Capture image from the video feed
+        document.getElementById('captureButton').addEventListener('click', () => {
+            let video = document.getElementById('video');
+            let canvas = document.getElementById('canvas');
+            let context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        });
+
+        // Switch between front and rear cameras
+        document.getElementById('switchCameraButton').addEventListener('click', async () => {
+            if (cameras.rear) {
+                const currentCamera = usingFrontCamera ? cameras.rear : cameras.front;
+                usingFrontCamera = !usingFrontCamera;
+                await startCamera(currentCamera);
+            } else {
+                alert('Rear camera not available.');
+            }
+        });
+
+        // Initialize by starting the front camera
+        searchForCameras().then(async function(cams) {
+            if (cams.front) {
+                await startCamera(cams.front);
+            } else {
+                alert('Front camera not found.');
+            }
+        });
+    </script>
+</body>
+</html>
